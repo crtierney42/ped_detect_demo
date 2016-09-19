@@ -21,11 +21,14 @@ sudo apt-get install cmake
 
 # Grab initial python packages
 
-#for p in `cat requirements.txt`; do pip install $p; done
+for p in `cat requirements.txt`; do pip install $p; done
+
+mkdir build
+cd bulid
 
 # Install OpenCV 2.4.11
 
-#wget http://downloads.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.11/opencv-2.4.11.zip
+wget http://downloads.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.11/opencv-2.4.11.zip
 unzip opencv-2.4.11.zip
 cd opencv-2.4.11
 mkdir release
@@ -35,7 +38,6 @@ cmake -G "Unix Makefiles" -D CMAKE_INSTALL_PREFIX=$BDIR/venv -D CMAKE_CXX_COMPIL
 
 make all -j4 # 4 cores
 make install
-
 
 # Install nvcaffe
 cd $BDIR
