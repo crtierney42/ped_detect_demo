@@ -63,90 +63,100 @@ print 'The input size for the network is: (' + \
         str(BATCH_SIZE), str(CHANNELS), str(HEIGHT), str(WIDTH) + \
          ') (batch size, channels, height, width)'
 
-# Create opencv video object
-vid = cv2.VideoCapture(pedfn)
 
-# We will just use every n-th frame from the video
-every_nth = 1
-frame_num = 0
-DetectObject = 1
 
-cval=1
-pause=0
-while(vid.isOpened()):
-    if pause != 1:
-        ret, frame = vid.read()
-        frame_num += 1
+while 1:
+    # Create opencv video object
+    vid = cv2.VideoCapture(pedfn)
 
-    if frame_num%every_nth == 0:
-        frame = cv2.resize(frame, (1024, 512), 0, 0)
+    # We will just use every n-th frame from the video
+    every_nth = 1
+    frame_num = 0
+    DetectObject = 1
 
-        if DetectObject == 1:             
-             # Use the Caffe transformer to preprocess the frame
-            data = transformer.preprocess('data', frame.astype('float16')/255)
-        
-            # Set the preprocessed frame to be the Caffe model's data layer
-            classifier.blobs['data'].data[...] = data
-        
-            # Measure inference time for the feed-forward operation
-            start = time.time()
-            # The output of DetectNet is an array of bounding box predictions
-            bounding_boxes = classifier.forward()['bbox-list'][0]
-            end = (time.time() - start)*1000
-
-            if cval:
-                # Convert the image from OpenCV BGR format to matplotlib RGB format for display
-                #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-           
-                # Create a copy of the image for drawing bounding boxes
-                overlay = frame.copy()
+    cval=1
+    pause=0
+    while(vid.isOpened()):
+        if pause != 1:
+            ret, frame = vid.read()
+            frame_num += 1
+    
+        if frame_num%every_nth == 0:
+            frame = cv2.resize(frame, (1024, 512), 0, 0)
+    
+            if DetectObject == 1:             
+                 # Use the Caffe transformer to preprocess the frame
+                data = transformer.preprocess('data', frame.astype('float16')/255)
             
-                # Loop over the bounding box predictions and draw a rectangle for each bounding box
-                for bbox in bounding_boxes:
-                    if  bbox.sum() > 0:
-                        cv2.rectangle(overlay, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255, 0, 0), -1)
-                    
-                # Overlay the bounding box image on the original image
-                frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
-            else:
-                gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+                # Set the preprocessed frame to be the Caffe model's data layer
+                classifier.blobs['data'].data[...] = data
+            
+                # Measure inference time for the feed-forward operation
+                start = time.time()
+                # The output of DetectNet is an array of bounding box predictions
+                bounding_boxes = classifier.forward()['bbox-list'][0]
+                end = (time.time() - start)*1000
+    
+                if cval:
+                    # Convert the image from OpenCV BGR format to matplotlib RGB format for display
+                    #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+               
+                    # Create a copy of the image for drawing bounding boxes
+                    overlay = frame.copy()
                 
-                gframe=np.copy(frame)
-                gframe[:,:,0]=gray
-                gframe[:,:,1]=gray
-                gframe[:,:,2]=gray
+                    # Loop over the bounding box predictions and draw a rectangle for each bounding box
+                    for bbox in bounding_boxes:
+                        if  bbox.sum() > 0:
+                            cv2.rectangle(overlay, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255, 0, 0), -1)
+                        
+                    # Overlay the bounding box image on the original image
+                    frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+                else:
+                    gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+                    # scale up to make it more white
+                    gray=127+np.rint(gray/2)
+                    
+                    gframe=np.copy(frame)
+                    gframe[:,:,0]=gray
+                    gframe[:,:,1]=gray
+                    gframe[:,:,2]=gray
 
-                # Loop over the bounding boxes and copy the colored section into the overlay
-                for bbox in bounding_boxes:
-                    if  bbox.sum() > 0:
-			b0=int(bbox[0])
-			b1=int(bbox[1])
-			b2=int(bbox[2])
-			b3=int(bbox[3])
-                        gframe[b1:b3,b0:b2,:]=frame[b1:b3,b0:b2,:]
-                frame=gframe
+                    # Loop over the bounding boxes and copy the colored section into the overlay
+                    for bbox in bounding_boxes:
+                        if  bbox.sum() > 0:
+        	    		b0=int(bbox[0])
+        	    		b1=int(bbox[1])
+        	    		b2=int(bbox[2])
+        			b3=int(bbox[3])
+                                gframe[b1:b3,b0:b2,:]=frame[b1:b3,b0:b2,:]
+                    frame=gframe
        
-            itxt="Inference time: %dms per frame" % end 
-            # Display the inference time per frame
-            cv2.putText(frame,itxt,
-                        (10,500), cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,255),2)
+                itxt="Inference time: %dms per frame" % end 
+                # Display the inference time per frame
+                cv2.putText(frame,itxt,
+                            (10,500), cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,255),2)
+    
+            cv2.imshow('frame',frame)
+            fn="outdata/outfile.%05d.jpg" % frame_num;
+            cv2.imwrite(fn,frame)
 
-        cv2.imshow('frame',frame)
-        fn="outdata/outfile.%05d.jpg" % frame_num;
-        cv2.imwrite(fn,frame)
+            # Now check the keypresses to do something different
+            v=cv2.waitKey(1)
+            if (v & 0xFF) == ord('q'):
+                break
+            if (v & 0xFF) == ord('c'):
+                cval=abs(cval-1)
+            if (v & 0xFF) == ord('d'):
+                DetectObject=~DetectObject
+            if (v & 0xFF) == ord('p'):
+                pause=abs(pause-1)
+            if frame_num == vid.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT):
+                frame_num = 0
+                vid = cv2.VideoCapture(pedfn)
 
-        # Now check the keypresses to do something different
-        v=cv2.waitKey(1)
-        if (v & 0xFF) == ord('q'):
-            break
-        if (v & 0xFF) == ord('c'):
-            cval=abs(cval-1)
-        if (v & 0xFF) == ord('d'):
-            DetectObject=~DetectObject
-        if (v & 0xFF) == ord('p'):
-            pause=abs(pause-1)
+    vid.release()
 
-vid.release()
+
 cv2.destroyAllWindows()
 
 
