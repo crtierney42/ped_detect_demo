@@ -22,14 +22,23 @@ print "File: ",pedfn
 caffe.set_mode_gpu()
 
 # Set the model job directory from DIGITS here
-MODEL_JOB_DIR='/home/ubuntu/digits/digits/jobs/20160905-143028-2f08'
-MODEL_JOB_DIR='data/'
+PED_DIR='data/'
+CARS_DIR='data_cars/'
 # Set the data job directory from DIGITS here
-DATA_JOB_DIR='/home/ubuntu/digits/digits/jobs/20160905-135347-01d5'
-DATA_JOB_DIR='data/'
+PED_DIR='data/'
+CARS_DIR='data_cars/'
 
-last_iteration='70800'
-#last_iteration='19140'
+last_iteration_ped='70800'
+last_iteration_cars='49200'
+
+width_ped=512
+height_ped=1024
+width_cars=384
+height_cars=1248
+width_out=512
+height_out=1024
+width_out=512
+height_out=1024
 
 # Load the dataset mean image file
 #mean = np.load('data/mean.binaryproto')
@@ -46,23 +55,41 @@ mean=np.swapaxes(mean,0,1)
 # Instantiate a Caffe model in GPU memory
 # The model architecture is defined in the deploy.prototxt file
 # The pretrained model weights are contained in the snapshot_iter_<number>.caffemodel file
-classifier = caffe.Net(os.path.join(MODEL_JOB_DIR,'deploy.prototxt'), 
-                       os.path.join(MODEL_JOB_DIR,'snapshot_iter_' + last_iteration + '.caffemodel'),
+classifier_ped = caffe.Net(os.path.join(PED_DIR,'deploy.prototxt'), 
+                       os.path.join(PED_DIR,'snapshot_iter_' + last_iteration_ped + '.caffemodel'),
                        caffe.TEST)
 
 # Instantiate a Caffe Transformer object that wil preprocess test images before inference
-transformer = caffe.io.Transformer({'data': classifier.blobs['data'].data.shape})
-transformer.set_transpose('data', (2,0,1))
+transformer_ped = caffe.io.Transformer({'data': classifier_ped.blobs['data'].data.shape})
+transformer_ped.set_transpose('data', (2,0,1))
 #transformer.set_mean('data',mean.mean(1).mean(1)/255)
-transformer.set_raw_scale('data', 255)
-transformer.set_channel_swap('data', (2,1,0))
+transformer_ped.set_raw_scale('data', 255)
+transformer_ped.set_channel_swap('data', (2,1,0))
+BATCH_SIZE_PED, CHANNELS_PED, HEIGHT_PED, WIDTH_PED = classifier_ped.blobs['data'].data[...].shape
 
-BATCH_SIZE, CHANNELS, HEIGHT, WIDTH = classifier.blobs['data'].data[...].shape
+# Instantiate a Caffe model in GPU memory
+# The model architecture is defined in the deploy.prototxt file
+# The pretrained model weights are contained in the snapshot_iter_<number>.caffemodel file
+classifier_cars = caffe.Net(os.path.join(CARS_DIR,'deploy.prototxt'), 
+                       os.path.join(CARS_DIR,'snapshot_iter_' + last_iteration_cars + '.caffemodel'),
+                       caffe.TEST)
 
-print 'The input size for the network is: (' + \
-        str(BATCH_SIZE), str(CHANNELS), str(HEIGHT), str(WIDTH) + \
+# Instantiate a Caffe Transformer object that wil preprocess test images before inference
+transformer_cars = caffe.io.Transformer({'data': classifier_cars.blobs['data'].data.shape})
+transformer_cars.set_transpose('data', (2,0,1))
+#transformer.set_mean('data',mean.mean(1).mean(1)/255)
+transformer_cars.set_raw_scale('data', 255)
+transformer_cars.set_channel_swap('data', (2,1,0))
+BATCH_SIZE_CARS, CHANNELS_CARS, HEIGHT_CARS, WIDTH_CARS = classifier_cars.blobs['data'].data[...].shape
+
+
+print 'The input size for the PEDESTRIAN network is: (' + \
+        str(BATCH_SIZE_PED), str(CHANNELS_PED), str(HEIGHT_PED), str(WIDTH_PED) + \
          ') (batch size, channels, height, width)'
 
+print 'The input size for the CARS network is: (' + \
+        str(BATCH_SIZE_CARS), str(CHANNELS_CARS), str(HEIGHT_CARS), str(WIDTH_CARS) + \
+         ') (batch size, channels, height, width)'
 
 
 while 1:
@@ -72,30 +99,47 @@ while 1:
     # We will just use every n-th frame from the video
     every_nth = 1
     frame_num = 0
-    DetectObject = 1
 
+    itxt=""
+
+    label_rate = 6
     cval=1
     pause=0
+    DetectObject=1
+    DetectPed=1
+    DetectCars=1
     while(vid.isOpened()):
         if pause != 1:
             ret, frame = vid.read()
             frame_num += 1
     
         if frame_num%every_nth == 0:
-            frame = cv2.resize(frame, (1024, 512), 0, 0)
+            frame = cv2.resize(frame, (height_out, width_out), 0, 0)
     
             if DetectObject == 1:             
+                # Measure inference time for the feed-forward operation
+                start = time.time()
+
+                ### Pedestrian Object Detect
                  # Use the Caffe transformer to preprocess the frame
-                data = transformer.preprocess('data', frame.astype('float16')/255)
-            
+                data_ped = transformer_ped.preprocess('data', frame.astype('float16')/255)
                 # Set the preprocessed frame to be the Caffe model's data layer
-                classifier.blobs['data'].data[...] = data
-            
+                classifier_ped.blobs['data'].data[...] = data_ped
                 # Measure inference time for the feed-forward operation
                 start = time.time()
                 # The output of DetectNet is an array of bounding box predictions
-                bounding_boxes = classifier.forward()['bbox-list'][0]
+                bounding_boxes_ped = classifier_ped.forward()['bbox-list'][0]
+
+		### Car Object Detect
+                # Use the Caffe transformer to preprocess the frame
+                data_cars = transformer_cars.preprocess('data', frame.astype('float16')/255)
+                # Set the preprocessed frame to be the Caffe model's data layer
+                classifier_cars.blobs['data'].data[...] = data_cars
+                # The output of DetectNet is an array of bounding box predictions
+                bounding_boxes_cars = classifier_cars.forward()['bbox-list'][0]
+
                 end = (time.time() - start)*1000
+
     
                 if cval:
                     # Convert the image from OpenCV BGR format to matplotlib RGB format for display
@@ -103,11 +147,27 @@ while 1:
                
                     # Create a copy of the image for drawing bounding boxes
                     overlay = frame.copy()
-                
+               
                     # Loop over the bounding box predictions and draw a rectangle for each bounding box
-                    for bbox in bounding_boxes:
-                        if  bbox.sum() > 0:
-                            cv2.rectangle(overlay, (bbox[0],bbox[1]), (bbox[2],bbox[3]), (255, 0, 0), -1)
+                    if DetectPed:
+                        for bbox in bounding_boxes_ped:
+                            if  bbox.sum() > 0:
+        			    # Scale the bboxes to the output size
+                                b0=np.int(bbox[0]/height_ped*height_out)
+                                b1=np.int(bbox[1]/width_ped*width_out)
+                                b2=np.int(bbox[2]/height_ped*height_out)
+                                b3=np.int(bbox[3]/width_ped*width_out)
+                                cv2.rectangle(overlay, (b0,b1), (b2,b3), (255, 0, 0), -1)
+    
+                    if DetectCars:
+                        for bbox in bounding_boxes_cars:
+                            if  bbox.sum() > 0:
+    			    # Scale the bboxes to the output size
+                                b0=np.int(bbox[0]/height_cars*height_out)
+                                b1=np.int(bbox[1]/width_cars*width_out)
+                                b2=np.int(bbox[2]/height_cars*height_out)
+                                b3=np.int(bbox[3]/width_cars*width_out)
+                                cv2.rectangle(overlay, (b0,b1), (b2,b3), (0, 255, 0), -1)
                         
                     # Overlay the bounding box image on the original image
                     frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
@@ -121,36 +181,57 @@ while 1:
                     gframe[:,:,1]=gray
                     gframe[:,:,2]=gray
 
-                    # Loop over the bounding boxes and copy the colored section into the overlay
-                    for bbox in bounding_boxes:
-                        if  bbox.sum() > 0:
-        	    		b0=int(bbox[0])
-        	    		b1=int(bbox[1])
-        	    		b2=int(bbox[2])
-        			b3=int(bbox[3])
+                    if DetectPed:
+                        # Loop over the bounding boxes and copy the colored section into the overlay
+                        for bbox in bounding_boxes_ped:
+                            if  bbox.sum() > 0:
+	    		    # Scale the bboxes to the output size
+                                b0=np.int(bbox[0]/height_ped*height_out)
+                                b1=np.int(bbox[1]/width_ped*width_out)
+                                b2=np.int(bbox[2]/height_ped*height_out)
+                                b3=np.int(bbox[3]/width_ped*width_out)
                                 gframe[b1:b3,b0:b2,:]=frame[b1:b3,b0:b2,:]
+
+
+                    if DetectCars:
+                        for bbox in bounding_boxes_cars:
+                            if  bbox.sum() > 0:
+    			    # Scale the bboxes to the output size
+                                b0=np.int(bbox[0]/height_cars*height_out)
+                                b1=np.int(bbox[1]/width_cars*width_out)
+                                b2=np.int(bbox[2]/height_cars*height_out)
+                                b3=np.int(bbox[3]/width_cars*width_out)
+                                gframe[b1:b3,b0:b2,:]=frame[b1:b3,b0:b2,:]
+
                     frame=gframe
-       
-                itxt="Inference time: %dms per frame" % end 
+      
+                if (frame_num+1) % label_rate == 0:  
+                    itxt="Inference time: %dms per frame" % end 
+                
                 # Display the inference time per frame
                 cv2.putText(frame,itxt,
                             (10,500), cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,255),2)
     
             cv2.imshow('frame',frame)
-            fn="outdata/outfile.%05d.jpg" % frame_num;
-            cv2.imwrite(fn,frame)
+#            fn="outdata/outfile.%05d.jpg" % frame_num;
+#            cv2.imwrite(fn,frame)
 
             # Now check the keypresses to do something different
             v=cv2.waitKey(1)
             if (v & 0xFF) == ord('q'):
                 break
-            if (v & 0xFF) == ord('c'):
+            if (v & 0xFF) == ord('g'):
                 cval=abs(cval-1)
             if (v & 0xFF) == ord('d'):
                 DetectObject=~DetectObject
             if (v & 0xFF) == ord('p'):
+                DetectPed=~DetectPed
+            if (v & 0xFF) == ord('c'):
+                DetectCars=~DetectCars
+            if (v & 0xFF) == ord('s'):
                 pause=abs(pause-1)
             if frame_num == vid.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT):
+		quit()
                 frame_num = 0
                 vid = cv2.VideoCapture(pedfn)
 
