@@ -223,11 +223,13 @@ while 1:
             if (v & 0xFF) == ord('g'):
                 cval=abs(cval-1)
             if (v & 0xFF) == ord('d'):
-                DetectObject=~DetectObject
+                DetectObject=abs(DetectObject-1)
             if (v & 0xFF) == ord('p'):
-                DetectPed=~DetectPed
+                DetectPed=abs(DetectPed-1)
+		print "New ped value: ",DetectPed
             if (v & 0xFF) == ord('c'):
-                DetectCars=~DetectCars
+                DetectCars=abs(DetectCars-1)	
+		print "New car value: ",DetectCars
             if (v & 0xFF) == ord('s'):
                 pause=abs(pause-1)
             if frame_num == vid.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT):
