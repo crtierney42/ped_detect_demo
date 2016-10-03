@@ -29,6 +29,9 @@ Leaving the environment
   #
 
 
+PATH TO SET:
+
+export PYTHONPATH=`pwd`/venv/python/2.7:`pwd`/caffe/python
 
 
 
