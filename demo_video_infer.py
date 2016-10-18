@@ -120,23 +120,24 @@ while 1:
                 # Measure inference time for the feed-forward operation
                 start = time.time()
 
-                ### Pedestrian Object Detect
-                 # Use the Caffe transformer to preprocess the frame
-                data_ped = transformer_ped.preprocess('data', frame.astype('float16')/255)
-                # Set the preprocessed frame to be the Caffe model's data layer
-                classifier_ped.blobs['data'].data[...] = data_ped
-                # Measure inference time for the feed-forward operation
-                start = time.time()
-                # The output of DetectNet is an array of bounding box predictions
-                bounding_boxes_ped = classifier_ped.forward()['bbox-list'][0]
+                if DetectPed:
+                    ### Pedestrian Object Detect
+                     # Use the Caffe transformer to preprocess the frame
+                    data_ped = transformer_ped.preprocess('data', frame.astype('float16')/255)
+                    # Set the preprocessed frame to be the Caffe model's data layer
+                    classifier_ped.blobs['data'].data[...] = data_ped
+                    # Measure inference time for the feed-forward operation
+                    # The output of DetectNet is an array of bounding box predictions
+                    bounding_boxes_ped = classifier_ped.forward()['bbox-list'][0]
 
-		### Car Object Detect
-                # Use the Caffe transformer to preprocess the frame
-                data_cars = transformer_cars.preprocess('data', frame.astype('float16')/255)
-                # Set the preprocessed frame to be the Caffe model's data layer
-                classifier_cars.blobs['data'].data[...] = data_cars
-                # The output of DetectNet is an array of bounding box predictions
-                bounding_boxes_cars = classifier_cars.forward()['bbox-list'][0]
+                if DetectCars:
+     		    ### Car Object Detect
+                    # Use the Caffe transformer to preprocess the frame
+                    data_cars = transformer_cars.preprocess('data', frame.astype('float16')/255)
+                    # Set the preprocessed frame to be the Caffe model's data layer
+                    classifier_cars.blobs['data'].data[...] = data_cars
+                    # The output of DetectNet is an array of bounding box predictions
+                    bounding_boxes_cars = classifier_cars.forward()['bbox-list'][0]
 
                 end = (time.time() - start)*1000
 

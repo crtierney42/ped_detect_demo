@@ -35,4 +35,6 @@ export PYTHONPATH=`pwd`/venv/python/2.7:`pwd`/caffe/python
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 
+Generate Video:
 
+ffmpeg -r 30 -i 'outdata/outfile.%05d.jpg' -c:v libx264 -qp 0 full_inference_v3.mp4
